@@ -1,0 +1,28 @@
+meta {
+  name: Create new weight-measurement
+  type: http
+  seq: 3
+}
+
+post {
+  url: http://localhost:8080/api/weight
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "user": {
+      "id": 1
+    },
+    "date": "2025-12-20T17:00:00",
+    "weight": 85.5,
+    "bodyFat": 15.2,
+    "muscleMass": 65.3
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

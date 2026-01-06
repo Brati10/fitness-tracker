@@ -1,0 +1,20 @@
+meta {
+  name: Token Validierung
+  type: http
+  seq: 6
+}
+
+get {
+  url: http://localhost:8080/api/auth/validate
+  body: none
+  auth: inherit
+}
+
+headers {
+  Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJ1c2VySWQiOjIsInN1YiI6InRlc3R1c2VyIiwiaWF0IjoxNzY2NjU2NzA5LCJleHAiOjE3NjcyNjE1MDl9.7iMrNrvLlqcs-d-3Ez6upaGX6N3hF_DL5TBpDLbsLyzXdh-0CrmgrugvOCVyI-re
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

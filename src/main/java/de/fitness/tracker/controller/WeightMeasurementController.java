@@ -27,7 +27,6 @@ public class WeightMeasurementController {
     public ResponseEntity<?> createMeasurement(@RequestBody
     Map<String, Object> data) {
         Long userId = ((Number) data.get("userId")).longValue();
-
         Optional<User> user = userRepository.findById(userId);
         if (user.isEmpty()) {
             return ResponseEntity.badRequest().body("User not found");
@@ -36,7 +35,14 @@ public class WeightMeasurementController {
         WeightMeasurement measurement = new WeightMeasurement();
         measurement.setUser(user.get());
         measurement.setDate(LocalDateTime.parse((String) data.get("date")));
-        measurement.setWeight((Double) data.get("weight"));
+
+        // Sicheres Parsen - weight (required)
+        Object weightObj = data.get("weight");
+        if (weightObj instanceof Number) {
+            measurement.setWeight(((Number) weightObj).doubleValue());
+        } else if (weightObj instanceof String) {
+            measurement.setWeight(Double.parseDouble((String) weightObj));
+        }
 
         // Optional fields
         if (data.get("bodyFat") != null)

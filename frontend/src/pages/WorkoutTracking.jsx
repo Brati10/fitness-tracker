@@ -124,7 +124,7 @@ function WorkoutTracking() {
   const startWorkout = () => {
     const now = new Date();
     const localDateTime = new Date(
-      now.getTime() - now.getTimezoneOffset() * 60000
+      now.getTime() - now.getTimezoneOffset() * 60000,
     )
       .toISOString()
       .slice(0, 19);
@@ -147,7 +147,7 @@ function WorkoutTracking() {
       // Training mit Vorlagen-Daten starten
       const now = new Date();
       const localDateTime = new Date(
-        now.getTime() - now.getTimezoneOffset() * 60000
+        now.getTime() - now.getTimezoneOffset() * 60000,
       )
         .toISOString()
         .slice(0, 19);
@@ -163,11 +163,11 @@ function WorkoutTracking() {
           try {
             const lastPerfResponse = await workoutApi.getLastPerformance(
               te.exercise.id,
-              userId
+              userId,
             );
             if (lastPerfResponse.data && lastPerfResponse.data.sets) {
               lastSets = lastPerfResponse.data.sets.sort(
-                (a, b) => a.setNumber - b.setNumber
+                (a, b) => a.setNumber - b.setNumber,
               );
 
               // Für Anzeige speichern
@@ -234,8 +234,9 @@ function WorkoutTracking() {
               // CARDIO Sätze
               sets.push({
                 setNumber: i + 1,
-                durationSeconds: lastSet?.durationSeconds || null,
-                distanceKm: lastSet?.distanceKm || null,
+                durationSeconds:
+                  lastSet?.durationSeconds || avgDuration || null,
+                distanceKm: lastSet?.distanceKm || avgDistance || null,
                 reps: null,
                 weight: null,
                 completed: false,
@@ -263,7 +264,7 @@ function WorkoutTracking() {
             sets: sets,
             comment: "",
           };
-        })
+        }),
       );
 
       setLocalWorkout({
@@ -640,7 +641,7 @@ function WorkoutTracking() {
               <ExerciseSelector
                 exercises={exercises}
                 alreadyAddedExerciseIds={localWorkout.exercises.map(
-                  (ex) => ex.exerciseId
+                  (ex) => ex.exerciseId,
                 )}
                 onExerciseSelected={addExerciseToWorkout}
                 onCancel={() => setShowExerciseList(false)}
@@ -659,7 +660,7 @@ function WorkoutTracking() {
                   ? (
                       completedSets.reduce(
                         (sum, set) => sum + parseFloat(set.weight || 0),
-                        0
+                        0,
                       ) / totalCompleted
                     ).toFixed(1)
                   : 0;
@@ -668,8 +669,8 @@ function WorkoutTracking() {
                   ? Math.round(
                       completedSets.reduce(
                         (sum, set) => sum + parseInt(set.reps || 0),
-                        0
-                      ) / totalCompleted
+                        0,
+                      ) / totalCompleted,
                     )
                   : 0;
 
@@ -707,11 +708,11 @@ function WorkoutTracking() {
                                 {(() => {
                                   const totalDuration = completedSets.reduce(
                                     (sum, s) => sum + (s.durationSeconds || 0),
-                                    0
+                                    0,
                                   );
                                   const totalDistance = completedSets.reduce(
                                     (sum, s) => sum + (s.distanceKm || 0),
-                                    0
+                                    0,
                                   );
                                   const mins = Math.floor(totalDuration / 60);
                                   const secs = Math.round(totalDuration % 60);
@@ -722,10 +723,10 @@ function WorkoutTracking() {
                                     const paceSeconds =
                                       totalDuration / totalDistance;
                                     const paceMins = Math.floor(
-                                      paceSeconds / 60
+                                      paceSeconds / 60,
                                     );
                                     const paceSecs = Math.round(
-                                      paceSeconds % 60
+                                      paceSeconds % 60,
                                     );
                                     paceDisplay = ` • 🏃 ${paceMins}:${paceSecs
                                       .toString()
@@ -750,7 +751,7 @@ function WorkoutTracking() {
                                   ? "Körpergewicht"
                                   : `${displayWeight(
                                       avgWeight,
-                                      userPreferences?.weightUnit || "kg"
+                                      userPreferences?.weightUnit || "kg",
                                     )} ${
                                       userPreferences?.weightUnit || "kg"
                                     }`}{" "}
@@ -891,7 +892,7 @@ function WorkoutTracking() {
                                         value={
                                           set.durationSeconds
                                             ? Math.floor(
-                                                set.durationSeconds / 60
+                                                set.durationSeconds / 60,
                                               )
                                             : ""
                                         }
@@ -905,7 +906,7 @@ function WorkoutTracking() {
                                             exerciseIndex,
                                             setIndex,
                                             "durationSeconds",
-                                            mins * 60 + secs
+                                            mins * 60 + secs,
                                           );
                                         }}
                                         onFocus={(e) => e.target.select()}
@@ -929,7 +930,7 @@ function WorkoutTracking() {
                                         onChange={(e) => {
                                           const mins = set.durationSeconds
                                             ? Math.floor(
-                                                set.durationSeconds / 60
+                                                set.durationSeconds / 60,
                                               )
                                             : 0;
                                           const secs =
@@ -938,7 +939,7 @@ function WorkoutTracking() {
                                             exerciseIndex,
                                             setIndex,
                                             "durationSeconds",
-                                            mins * 60 + secs
+                                            mins * 60 + secs,
                                           );
                                         }}
                                         onFocus={(e) => e.target.select()}
@@ -969,27 +970,27 @@ function WorkoutTracking() {
                                         ) {
                                           const normalized = value.replace(
                                             ",",
-                                            "."
+                                            ".",
                                           );
                                           updateSet(
                                             exerciseIndex,
                                             setIndex,
                                             "distanceKm",
-                                            normalized
+                                            normalized,
                                           );
                                         }
                                       }}
                                       onBlur={(e) => {
                                         const value = e.target.value.replace(
                                           ",",
-                                          "."
+                                          ".",
                                         );
                                         if (value === "") {
                                           updateSet(
                                             exerciseIndex,
                                             setIndex,
                                             "distanceKm",
-                                            ""
+                                            "",
                                           );
                                         } else {
                                           const numValue = parseFloat(value);
@@ -998,7 +999,7 @@ function WorkoutTracking() {
                                               exerciseIndex,
                                               setIndex,
                                               "distanceKm",
-                                              parseFloat(numValue.toFixed(2))
+                                              parseFloat(numValue.toFixed(2)),
                                             );
                                           }
                                         }
@@ -1027,7 +1028,7 @@ function WorkoutTracking() {
                                           exerciseIndex,
                                           setIndex,
                                           "reps",
-                                          e.target.value
+                                          e.target.value,
                                         )
                                       }
                                       onFocus={(e) => e.target.select()}
@@ -1065,13 +1066,13 @@ function WorkoutTracking() {
                                             ) {
                                               const normalized = value.replace(
                                                 ",",
-                                                "."
+                                                ".",
                                               );
                                               updateSet(
                                                 exerciseIndex,
                                                 setIndex,
                                                 "weight",
-                                                normalized
+                                                normalized,
                                               );
                                             }
                                           }}
@@ -1083,7 +1084,7 @@ function WorkoutTracking() {
                                                 exerciseIndex,
                                                 setIndex,
                                                 "weight",
-                                                0
+                                                0,
                                               );
                                             } else {
                                               const numValue =
@@ -1094,8 +1095,8 @@ function WorkoutTracking() {
                                                   setIndex,
                                                   "weight",
                                                   parseFloat(
-                                                    numValue.toFixed(2)
-                                                  )
+                                                    numValue.toFixed(2),
+                                                  ),
                                                 );
                                               }
                                             }
@@ -1123,7 +1124,7 @@ function WorkoutTracking() {
                                               : set.weight === 0
                                                 ? "0"
                                                 : Math.round(
-                                                    set.weight * 2.20462 * 10
+                                                    set.weight * 2.20462 * 10,
                                                   ) / 10
                                           }
                                           onChange={(e) => {
@@ -1134,7 +1135,7 @@ function WorkoutTracking() {
                                             ) {
                                               const normalized = value.replace(
                                                 ",",
-                                                "."
+                                                ".",
                                               );
                                               const lbsValue =
                                                 parseFloat(normalized);
@@ -1145,14 +1146,16 @@ function WorkoutTracking() {
                                                   exerciseIndex,
                                                   setIndex,
                                                   "weight",
-                                                  parseFloat(kgValue.toFixed(2))
+                                                  parseFloat(
+                                                    kgValue.toFixed(2),
+                                                  ),
                                                 );
                                               } else if (normalized === "") {
                                                 updateSet(
                                                   exerciseIndex,
                                                   setIndex,
                                                   "weight",
-                                                  ""
+                                                  "",
                                                 );
                                               }
                                             }
@@ -1165,7 +1168,7 @@ function WorkoutTracking() {
                                                 exerciseIndex,
                                                 setIndex,
                                                 "weight",
-                                                0
+                                                0,
                                               );
                                             } else {
                                               const lbsValue =
@@ -1177,7 +1180,9 @@ function WorkoutTracking() {
                                                   exerciseIndex,
                                                   setIndex,
                                                   "weight",
-                                                  parseFloat(kgValue.toFixed(2))
+                                                  parseFloat(
+                                                    kgValue.toFixed(2),
+                                                  ),
                                                 );
                                               }
                                             }
@@ -1241,7 +1246,7 @@ function WorkoutTracking() {
                             onChange={(e) =>
                               updateExerciseComment(
                                 exerciseIndex,
-                                e.target.value
+                                e.target.value,
                               )
                             }
                             placeholder="Notizen zu dieser Übung..."

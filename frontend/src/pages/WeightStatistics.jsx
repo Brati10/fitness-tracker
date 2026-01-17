@@ -57,12 +57,12 @@ function WeightStatistics() {
 
   // Helper: Gefilterte Messungen basierend auf Datumsbereich
   const getFilteredMeasurements = () => {
-    if (timeFilter === "all") return measurements;
+    if (dateRange === "all") return measurements;
 
     const now = new Date();
     let daysToSubtract;
 
-    switch (timeFilter) {
+    switch (dateRange) {
       case "1month":
         daysToSubtract = DAYS_IN_MONTH;
         break;

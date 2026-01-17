@@ -16,7 +16,6 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = "http://localhost:5173")
 public class AuthController {
 
     @Autowired
@@ -29,21 +28,26 @@ public class AuthController {
     private JwtUtil jwtUtil;
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
+    public ResponseEntity<?> register(@RequestBody
+    RegisterRequest request) {
         // Validierung
         if (userRepository.existsByUsername(request.getUsername())) {
             return ResponseEntity.badRequest().body("Username already exists");
-        }
-        if (userRepository.existsByEmail(request.getEmail())) {
-            return ResponseEntity.badRequest().body("Email already exists");
         }
 
         // User erstellen
         User user = new User();
         user.setUsername(request.getUsername());
-        user.setEmail(request.getEmail());
-        user.setPassword(passwordEncoder.encode(request.getPassword())); // Passwort hashen!
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setHeight(request.getHeight());
+
+        // Erster User = ADMIN
+        long userCount = userRepository.count();
+        if (userCount == 0) {
+            user.setRole("ADMIN");
+        } else {
+            user.setRole("USER");
+        }
 
         User savedUser = userRepository.save(user);
 
@@ -51,11 +55,12 @@ public class AuthController {
         String token = jwtUtil.generateToken(savedUser.getUsername(), savedUser.getId());
 
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(new AuthResponse(token, savedUser.getId(), savedUser.getUsername()));
+                .body(new AuthResponse(token, savedUser.getId(), savedUser.getUsername(), savedUser.getRole()));
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest request) {
+    public ResponseEntity<?> login(@RequestBody
+    LoginRequest request) {
         Optional<User> userOpt = userRepository.findByUsername(request.getUsername());
 
         if (userOpt.isEmpty()) {
@@ -72,11 +77,12 @@ public class AuthController {
         // Token generieren
         String token = jwtUtil.generateToken(user.getUsername(), user.getId());
 
-        return ResponseEntity.ok(new AuthResponse(token, user.getId(), user.getUsername()));
+        return ResponseEntity.ok(new AuthResponse(token, user.getId(), user.getUsername(), user.getRole()));
     }
 
     @GetMapping("/validate")
-    public ResponseEntity<?> validateToken(@RequestHeader("Authorization") String authHeader) {
+    public ResponseEntity<?> validateToken(@RequestHeader("Authorization")
+    String authHeader) {
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("No token provided");
         }
@@ -86,7 +92,15 @@ public class AuthController {
         if (jwtUtil.isTokenValid(token)) {
             Long userId = jwtUtil.extractUserId(token);
             String username = jwtUtil.extractUsername(token);
-            return ResponseEntity.ok(new AuthResponse(token, userId, username));
+
+            // User laden um role zu holen
+            Optional<User> userOpt = userRepository.findById(userId);
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("User not found");
+            }
+
+            String role = userOpt.get().getRole();
+            return ResponseEntity.ok(new AuthResponse(token, userId, username, role));
         }
 
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid token");

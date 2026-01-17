@@ -34,10 +34,16 @@ public class WeightMeasurement {
     private Double weight; // in kg
 
     private Double bodyFat; // in %
+
     private Double muscleMass; // in kg
+
     private Double boneMass; // in kg
+
     private Double bmi;
+
     private Integer metabolicAge;
+
     private Double waterPercentage; // in %
+
     private Integer visceralFat; // Stufe
 }

@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_BASE_URL = "http://192.168.178.33:8080/api";
+const API_BASE_URL = "http://192.168.0.193:8080/api";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -47,10 +47,13 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// User API
-export const userApi = {
-  register: (userData) => api.post("/users/register", userData),
-  getUser: (id) => api.get(`/users/${id}`),
+// Admin API
+export const adminApi = {
+  getAllUsers: (adminId) => api.get(`/admin/users?adminId=${adminId}`),
+  updateUserRole: (userId, adminId, role) =>
+    api.put(`/admin/users/${userId}/role`, { adminId, role }),
+  resetPassword: (userId, adminId, newPassword) =>
+    api.put(`/admin/users/${userId}/reset-password`, { adminId, newPassword }),
 };
 
 // Weight Measurement API
@@ -86,7 +89,15 @@ export const templateApi = {
   create: (templateData) => api.post("/templates", templateData),
   getUserTemplates: (userId) => api.get(`/templates/user/${userId}`),
   getById: (id) => api.get(`/templates/${id}`),
+  update: (id, templateData) => api.put(`/templates/${id}`, templateData),
   delete: (id) => api.delete(`/templates/${id}`),
+};
+
+// User Preferences API
+export const preferencesApi = {
+  getUserPreferences: (userId) => api.get(`/preferences/user/${userId}`),
+  updateUserPreferences: (userId, updates) =>
+    api.put(`/preferences/user/${userId}`, updates),
 };
 
 export default api;

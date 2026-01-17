@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { templateApi } from "../services/api";
 import PageHeader from "../components/PageHeader";
+import EmptyState from "../components/EmptyState";
 
 function WorkoutTemplates() {
   const { user } = useAuth();
@@ -44,32 +45,46 @@ function WorkoutTemplates() {
 
       <div className="p-4 space-y-3">
         {templates.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-gray-500 mb-4">Noch keine Vorlagen vorhanden.</p>
-            <p className="text-sm text-gray-400">
-              Erstelle ein Training und speichere es als Vorlage!
-            </p>
-          </div>
+          <EmptyState
+            message="Noch keine Vorlagen vorhanden. Erstelle deine erste Vorlage für wiederkehrende Trainings!"
+            icon="📝"
+          />
         ) : (
           templates.map((template) => (
-            <div key={template.id} className="bg-white p-4 rounded-lg shadow">
+            <div
+              key={template.id}
+              className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow"
+            >
               <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold text-lg">{template.name}</h3>
-                <button
-                  onClick={() => setDeleteConfirm(template)}
-                  className="bg-red-500 hover:bg-red-600 text-white w-8 h-8 rounded flex items-center justify-center text-lg"
-                >
-                  ✕
-                </button>
+                <h3 className="font-semibold text-lg dark:text-white">
+                  {template.name}
+                </h3>
+                <div className="flex gap-2">
+                  {/* Bearbeiten Button */}
+                  <button
+                    onClick={() => navigate(`/templates/${template.id}/edit`)}
+                    className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm"
+                  >
+                    ✏️ Bearbeiten
+                  </button>
+
+                  {/* Löschen Button */}
+                  <button
+                    onClick={() => setDeleteConfirm(template)}
+                    className="bg-red-500 hover:bg-red-600 text-white w-8 h-8 rounded flex items-center justify-center text-lg"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
 
-              <p className="text-sm text-gray-600 mb-3">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
                 {template.exercises?.length || 0} Übungen
               </p>
 
               <button
                 onClick={() => startFromTemplate(template.id)}
-                className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded font-semibold"
+                className="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded font-semibold"
               >
                 Training mit dieser Vorlage starten
               </button>

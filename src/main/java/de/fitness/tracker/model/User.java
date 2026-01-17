@@ -1,7 +1,6 @@
 package de.fitness.tracker.model;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -25,11 +24,6 @@ public class User {
     private String username;
 
     @NotBlank
-    @Email
-    @Column(unique = true, nullable = false)
-    private String email;
-
-    @NotBlank
     @Column(nullable = false)
     private String password;
 
@@ -43,4 +37,7 @@ public class User {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
     }
+
+    @Column(name = "role")
+    private String role = "USER"; // USER, TRUSTED_USER, ADMIN
 }

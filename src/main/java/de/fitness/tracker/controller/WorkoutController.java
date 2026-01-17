@@ -14,7 +14,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/workouts")
-@CrossOrigin(origins = "http://localhost:5173")
 public class WorkoutController {
 
     @Autowired
@@ -34,7 +33,8 @@ public class WorkoutController {
 
     // Neues Workout starten
     @PostMapping
-    public ResponseEntity<?> createWorkout(@RequestBody Workout workout) {
+    public ResponseEntity<?> createWorkout(@RequestBody
+    Workout workout) {
         Optional<User> user = userRepository.findById(workout.getUser().getId());
         if (user.isEmpty()) {
             return ResponseEntity.badRequest().body("User not found");
@@ -48,24 +48,24 @@ public class WorkoutController {
 
     // Alle Workouts eines Users
     @GetMapping("/user/{userId}")
-    public ResponseEntity<List<Workout>> getUserWorkouts(@PathVariable Long userId) {
+    public ResponseEntity<List<Workout>> getUserWorkouts(@PathVariable
+    Long userId) {
         List<Workout> workouts = workoutRepository.findByUserIdOrderByDateDesc(userId);
         return ResponseEntity.ok(workouts);
     }
 
     // Einzelnes Workout mit Details
     @GetMapping("/{id}")
-    public ResponseEntity<Workout> getWorkout(@PathVariable Long id) {
-        return workoutRepository.findById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<Workout> getWorkout(@PathVariable
+    Long id) {
+        return workoutRepository.findById(id).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
     }
 
     // Übung zu Workout hinzufügen
     @PostMapping("/{workoutId}/exercises")
-    public ResponseEntity<?> addExerciseToWorkout(
-            @PathVariable Long workoutId,
-            @RequestBody WorkoutExercise workoutExercise) {
+    public ResponseEntity<?> addExerciseToWorkout(@PathVariable
+    Long workoutId, @RequestBody
+    WorkoutExercise workoutExercise) {
 
         Optional<Workout> workout = workoutRepository.findById(workoutId);
         if (workout.isEmpty()) {
@@ -86,9 +86,9 @@ public class WorkoutController {
 
     // Satz zu WorkoutExercise hinzufügen
     @PostMapping("/exercises/{workoutExerciseId}/sets")
-    public ResponseEntity<?> addSetToExercise(
-            @PathVariable Long workoutExerciseId,
-            @RequestBody ExerciseSet exerciseSet) {
+    public ResponseEntity<?> addSetToExercise(@PathVariable
+    Long workoutExerciseId, @RequestBody
+    ExerciseSet exerciseSet) {
 
         Optional<WorkoutExercise> workoutExercise = workoutExerciseRepository.findById(workoutExerciseId);
         if (workoutExercise.isEmpty()) {
@@ -102,9 +102,9 @@ public class WorkoutController {
 
     // Letzte Werte für eine Übung abrufen (für "Letztes Mal"-Anzeige)
     @GetMapping("/exercises/{exerciseId}/last")
-    public ResponseEntity<?> getLastExercisePerformance(
-            @PathVariable Long exerciseId,
-            @RequestParam Long userId) {
+    public ResponseEntity<?> getLastExercisePerformance(@PathVariable
+    Long exerciseId, @RequestParam
+    Long userId) {
 
         // Alle WorkoutExercises für diese Übung holen
         List<WorkoutExercise> allPerformances = workoutExerciseRepository
@@ -112,8 +112,7 @@ public class WorkoutController {
 
         // Nur die vom aktuellen User filtern
         List<WorkoutExercise> userPerformances = allPerformances.stream()
-                .filter(we -> we.getWorkout().getUser().getId().equals(userId))
-                .toList();
+                .filter(we -> we.getWorkout().getUser().getId().equals(userId)).toList();
 
         if (userPerformances.isEmpty()) {
             return ResponseEntity.ok().body(null);
@@ -125,11 +124,8 @@ public class WorkoutController {
     }
 
     @PostMapping("/save-complete")
-    public ResponseEntity<?> saveCompleteWorkout(@RequestBody WorkoutSaveRequest request) {
-        System.out.println("=== SAVE COMPLETE CALLED ===");
-        System.out.println("User ID: " + request.getUserId());
-        System.out.println("Workout Name: " + request.getName());
-        System.out.println("Number of exercises: " + request.getExercises().size());
+    public ResponseEntity<?> saveCompleteWorkout(@RequestBody
+    WorkoutSaveRequest request) {
 
         Optional<User> user = userRepository.findById(request.getUserId());
         if (user.isEmpty()) {
@@ -164,14 +160,20 @@ public class WorkoutController {
                 ExerciseSet set = new ExerciseSet();
                 set.setWorkoutExercise(savedWE);
                 set.setSetNumber(setData.getSetNumber());
+
+                // STRENGTH Felder
                 set.setWeight(setData.getWeight());
                 set.setReps(setData.getReps());
+
+                // CARDIO Felder
+                set.setDurationSeconds(setData.getDurationSeconds());
+                set.setDistanceKm(setData.getDistanceKm());
+
                 exerciseSetRepository.save(set);
             }
         }
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
-                "id", savedWorkout.getId(),
-                "message", "Workout saved successfully"));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(Map.of("id", savedWorkout.getId(), "message", "Workout saved successfully"));
     }
 }

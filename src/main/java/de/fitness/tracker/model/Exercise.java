@@ -1,7 +1,6 @@
 package de.fitness.tracker.model;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -17,22 +16,23 @@ public class Exercise {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotBlank
-    @Column(nullable = false)
-    private String name; // z.B. "Bankdrücken Langhantel"
+    @Column(nullable = false, unique = true)
+    private String name;
 
     @Enumerated(EnumType.STRING)
-    private ExerciseCategory category; // optional: CHEST, BACK, LEGS, etc.
+    @Column(name = "exercise_type")
+    private ExerciseType exerciseType = ExerciseType.STRENGTH; // Default:
+                                                               // STRENGTH
 
-    public enum ExerciseCategory {
-        CHEST,
-        BACK,
-        LEGS,
-        SHOULDERS,
-        BICEPS,
-        TRICEPS,
-        CORE,
-        CARDIO,
-        OTHER
-    }
+    // Nur für STRENGTH-Übungen:
+    @Column(name = "weight_per_side")
+    private Boolean weightPerSide = false;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "equipment_type")
+    private EquipmentType equipmentType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "primary_muscle_group")
+    private MuscleGroup primaryMuscleGroup;
 }

@@ -33,9 +33,17 @@ public class TemplateExercise {
     @Column(name = "sets_count")
     private Integer setsCount; // Anzahl Sätze als Vorlage
 
+    // Für STRENGTH-Vorlagen
     @Column(name = "target_weight")
-    private Double targetWeight; // Optional: Zielgewicht
+    private Double targetWeight;
 
     @Column(name = "target_reps")
-    private Integer targetReps; // Optional: Ziel-Wiederholungen
+    private Integer targetReps;
+
+    // Für CARDIO-Vorlagen
+    @Column(name = "target_duration_seconds")
+    private Integer targetDurationSeconds;
+
+    @Column(name = "target_distance_km")
+    private Double targetDistanceKm;
 }

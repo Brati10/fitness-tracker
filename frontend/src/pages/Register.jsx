@@ -5,7 +5,6 @@ import { useAuth } from "../context/AuthContext";
 function Register() {
   const [formData, setFormData] = useState({
     username: "",
-    email: "",
     password: "",
     height: "",
   });
@@ -29,7 +28,6 @@ function Register() {
 
     const result = await register(
       formData.username,
-      formData.email,
       formData.password,
       parseInt(formData.height)
     );
@@ -64,19 +62,6 @@ function Register() {
               required
               className="w-full border rounded px-3 py-2"
               autoComplete="username"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Email *</label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              required
-              className="w-full border rounded px-3 py-2"
-              autoComplete="email"
             />
           </div>
 

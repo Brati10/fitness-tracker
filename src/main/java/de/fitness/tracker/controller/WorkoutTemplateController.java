@@ -14,7 +14,6 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/templates")
-@CrossOrigin(origins = { "http://localhost:5173", "http://192.168.178.33:5173" })
 public class WorkoutTemplateController {
 
     @Autowired
@@ -30,7 +29,8 @@ public class WorkoutTemplateController {
     private ExerciseRepository exerciseRepository;
 
     @PostMapping
-    public ResponseEntity<?> createTemplate(@RequestBody TemplateSaveRequest request) {
+    public ResponseEntity<?> createTemplate(@RequestBody
+    TemplateSaveRequest request) {
         Optional<User> user = userRepository.findById(request.getUserId());
         if (user.isEmpty()) {
             return ResponseEntity.badRequest().body("User not found");
@@ -59,19 +59,20 @@ public class WorkoutTemplateController {
             templateExerciseRepository.save(te);
         }
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
-                "id", savedTemplate.getId(),
-                "message", "Template created successfully"));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(Map.of("id", savedTemplate.getId(), "message", "Template created successfully"));
     }
 
     @GetMapping("/user/{userId}")
-    public ResponseEntity<List<WorkoutTemplate>> getUserTemplates(@PathVariable Long userId) {
+    public ResponseEntity<List<WorkoutTemplate>> getUserTemplates(@PathVariable
+    Long userId) {
         List<WorkoutTemplate> templates = templateRepository.findByUserIdOrderByCreatedAtDesc(userId);
         return ResponseEntity.ok(templates);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<?> getTemplate(@PathVariable Long id) {
+    public ResponseEntity<?> getTemplate(@PathVariable
+    Long id) {
         Optional<WorkoutTemplate> template = templateRepository.findById(id);
         if (template.isEmpty()) {
             return ResponseEntity.notFound().build();
@@ -79,8 +80,47 @@ public class WorkoutTemplateController {
         return ResponseEntity.ok(template.get());
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateTemplate(@PathVariable
+    Long id, @RequestBody
+    TemplateSaveRequest request) {
+        Optional<WorkoutTemplate> templateOpt = templateRepository.findById(id);
+        if (templateOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        WorkoutTemplate template = templateOpt.get();
+        template.setName(request.getName());
+
+        // Alte Übungen löschen
+        templateExerciseRepository.deleteAll(template.getExercises());
+        template.getExercises().clear();
+
+        // Neue Übungen hinzufügen
+        for (TemplateSaveRequest.TemplateExerciseData exerciseData : request.getExercises()) {
+            Optional<Exercise> exercise = exerciseRepository.findById(exerciseData.getExerciseId());
+            if (exercise.isEmpty())
+                continue;
+
+            TemplateExercise te = new TemplateExercise();
+            te.setTemplate(template);
+            te.setExercise(exercise.get());
+            te.setOrderIndex(exerciseData.getOrderIndex());
+            te.setSetsCount(exerciseData.getSetsCount());
+            te.setTargetWeight(exerciseData.getTargetWeight());
+            te.setTargetReps(exerciseData.getTargetReps());
+
+            templateExerciseRepository.save(te);
+        }
+
+        templateRepository.save(template);
+
+        return ResponseEntity.ok(Map.of("id", template.getId(), "message", "Template updated successfully"));
+    }
+
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteTemplate(@PathVariable Long id) {
+    public ResponseEntity<?> deleteTemplate(@PathVariable
+    Long id) {
         if (!templateRepository.existsById(id)) {
             return ResponseEntity.notFound().build();
         }

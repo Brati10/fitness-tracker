@@ -1,18 +1,23 @@
 import { useState, useEffect } from "react";
-import { workoutApi } from "../services/api";
 import { useAuth } from "../context/AuthContext";
-
+import { workoutApi, preferencesApi } from "../services/api";
 import PageHeader from "../components/PageHeader";
+import EmptyState from "../components/EmptyState";
+import { displayWeightWithLabel } from "../utils/weightConversion";
+import { formatDateTime } from "../utils/dateFormat";
 
 function WorkoutHistory() {
-  const [workouts, setWorkouts] = useState([]);
-  const [selectedWorkout, setSelectedWorkout] = useState(null);
-
   const { user } = useAuth();
   const userId = user?.id;
 
+  const [workouts, setWorkouts] = useState([]);
+  const [userPreferences, setUserPreferences] = useState(null);
+  const [expandedWorkout, setExpandedWorkout] = useState(null);
+  const [timeFilter, setTimeFilter] = useState("recent"); // 'recent', '1month', '3months', '6months', 'all'
+
   useEffect(() => {
     loadWorkouts();
+    loadUserPreferences();
   }, []);
 
   const loadWorkouts = async () => {
@@ -20,16 +25,17 @@ function WorkoutHistory() {
       const response = await workoutApi.getUserWorkouts(userId);
       setWorkouts(response.data);
     } catch (error) {
-      console.error("Fehler beim Laden der Trainings:", error);
+      console.error("Fehler beim Laden:", error);
+      alert("Fehler beim Laden der Trainings!");
     }
   };
 
-  const loadWorkoutDetails = async (workoutId) => {
+  const loadUserPreferences = async () => {
     try {
-      const response = await workoutApi.getById(workoutId);
-      setSelectedWorkout(response.data);
+      const response = await preferencesApi.getUserPreferences(userId);
+      setUserPreferences(response.data);
     } catch (error) {
-      console.error("Fehler beim Laden der Details:", error);
+      console.error("Fehler beim Laden der Preferences:", error);
     }
   };
 
@@ -52,143 +58,203 @@ function WorkoutHistory() {
     return `${mins}min`;
   };
 
+  const getFilteredWorkouts = () => {
+    if (timeFilter === "recent") {
+      return workouts.slice(0, 6);
+    }
+
+    if (timeFilter === "all") {
+      return workouts;
+    }
+
+    const now = new Date();
+    let startDate = new Date();
+
+    switch (timeFilter) {
+      case "1month":
+        startDate.setMonth(now.getMonth() - 1);
+        break;
+      case "3months":
+        startDate.setMonth(now.getMonth() - 3);
+        break;
+      case "6months":
+        startDate.setMonth(now.getMonth() - 6);
+        break;
+      default:
+        return workouts;
+    }
+
+    return workouts.filter((w) => new Date(w.startTime) >= startDate);
+  };
+
+  const toggleWorkout = (workoutId) => {
+    if (expandedWorkout === workoutId) {
+      setExpandedWorkout(null);
+    } else {
+      setExpandedWorkout(workoutId);
+    }
+  };
+
+  const filteredWorkouts = getFilteredWorkouts();
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {!selectedWorkout ? (
-        <>
-          <PageHeader title="Trainings-Historie" showBack backTo="/" />
-          <div className="p-4 space-y-3">
-            {workouts.length === 0 ? (
-              <p className="text-gray-500">Noch keine Trainings vorhanden.</p>
-            ) : (
-              workouts.map((workout) => (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <PageHeader title="Trainings-Historie" showBack backTo="/" />
+
+      <div className="p-4 space-y-4">
+        {/* Filter */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+          <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+            Zeitraum:
+          </label>
+          <select
+            value={timeFilter}
+            onChange={(e) => setTimeFilter(e.target.value)}
+            className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+          >
+            <option value="recent">Letzte 6 Trainings</option>
+            <option value="1month">Letzter Monat</option>
+            <option value="3months">Letzte 3 Monate</option>
+            <option value="6months">Letzte 6 Monate</option>
+            <option value="all">Alle</option>
+          </select>
+        </div>
+
+        {/* Workouts */}
+        {filteredWorkouts.length === 0 ? (
+          <EmptyState message="Noch keine Trainings vorhanden." icon="💪" />
+        ) : (
+          filteredWorkouts.map((workout) => {
+            const isExpanded = expandedWorkout === workout.id;
+            const duration = calculateDuration(
+              workout.startTime,
+              workout.endTime
+            );
+            const totalExercises = workout.exercises?.length || 0;
+
+            return (
+              <div
+                key={workout.id}
+                className="bg-white dark:bg-gray-800 rounded-lg shadow"
+              >
+                {/* Header - klickbar */}
                 <div
-                  key={workout.id}
-                  onClick={() => loadWorkoutDetails(workout.id)}
-                  className="bg-white p-4 rounded-lg shadow cursor-pointer hover:bg-gray-50"
+                  onClick={() => toggleWorkout(workout.id)}
+                  className="p-4 cursor-pointer transition rounded-t-lg hover:opacity-90"
                 >
-                  <h3 className="font-semibold text-lg">
-                    {workout.name || "Training"}
-                  </h3>
-                  <p className="text-sm text-gray-600">
-                    {new Date(workout.startTime).toLocaleDateString("de-DE", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
-                  <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
-                    <span>{workout.exercises?.length || 0} Übungen</span>
-                    {calculateDuration(workout.startTime, workout.endTime) && (
-                      <>
-                        <span>•</span>
-                        <span>
-                          ⏱️{" "}
-                          {calculateDuration(
-                            workout.startTime,
-                            workout.endTime
-                          )}
-                        </span>
-                      </>
-                    )}
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-lg text-gray-800 dark:text-gray-100">
+                        {workout.name || "Training"}
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                        {formatDateTime(workout.startTime)}
+                      </p>
+                      <div className="flex items-center gap-3 mt-2 text-sm text-gray-500 dark:text-gray-400">
+                        <span>{totalExercises} Übungen</span>
+                        {duration && (
+                          <>
+                            <span>•</span>
+                            <span>⏱️ {duration}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              ))
-            )}
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="bg-white border-b border-gray-200 p-4 sticky top-0 z-40 shadow-sm">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setSelectedWorkout(null)}
-                className="text-blue-500 hover:text-blue-700 text-2xl"
-              >
-                ←
-              </button>
-              <h1 className="text-2xl font-bold">Training Details</h1>
-            </div>
-          </div>
 
-          <div className="p-4 space-y-4">
-            <div className="bg-white p-4 rounded-lg shadow">
-              <h2 className="text-xl font-bold mb-2">
-                {selectedWorkout.name || "Training"}
-              </h2>
-              <div className="text-sm text-gray-600 space-y-1 mb-4">
-                <p>
-                  Start:{" "}
-                  {new Date(selectedWorkout.startTime).toLocaleString("de-DE")}
-                </p>
-                {selectedWorkout.endTime && (
-                  <>
-                    <p>
-                      Ende:{" "}
-                      {new Date(selectedWorkout.endTime).toLocaleString(
-                        "de-DE"
-                      )}
-                    </p>
-                    {calculateDuration(
-                      selectedWorkout.startTime,
-                      selectedWorkout.endTime
-                    ) && (
-                      <p className="font-medium text-blue-600">
-                        Dauer:{" "}
-                        {calculateDuration(
-                          selectedWorkout.startTime,
-                          selectedWorkout.endTime
-                        )}
-                      </p>
-                    )}
-                  </>
+                {/* Details - nur wenn aufgeklappt */}
+                {isExpanded && (
+                  <div className="px-4 pb-4 border-t dark:border-gray-700">
+                    <div className="space-y-4 mt-4">
+                      {workout.exercises?.map((we) => (
+                        <div
+                          key={we.id}
+                          className="border-l-4 border-blue-500 pl-3"
+                        >
+                          <h4 className="font-semibold text-lg text-gray-800 dark:text-gray-100 mb-2">
+                            {we.exercise.name}
+                          </h4>
+
+                          {/* Kommentar */}
+                          {we.comment && (
+                            <div className="bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded mb-3 border-l-4 border-yellow-400">
+                              <p className="text-xs font-medium text-yellow-800 dark:text-yellow-300 mb-1">
+                                Kommentar:
+                              </p>
+                              <p className="text-sm text-yellow-900 dark:text-yellow-200">
+                                {we.comment}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Sätze */}
+                          {we.sets && we.sets.length > 0 ? (
+                            <div className="space-y-1">
+                              {we.sets.map((set) => (
+                                <div
+                                  key={set.id}
+                                  className="text-sm bg-gray-50 dark:bg-gray-700 p-2 rounded"
+                                >
+                                  <span className="text-gray-700 dark:text-gray-300">
+                                    Satz {set.setNumber}:{" "}
+                                    {we.exercise.exerciseType === "CARDIO" ? (
+                                      // CARDIO: Zeit & Distanz
+                                      <>
+                                        {(() => {
+                                          const mins = Math.floor(
+                                            (set.durationSeconds || 0) / 60
+                                          );
+                                          const secs =
+                                            (set.durationSeconds || 0) % 60;
+                                          return `⏱️ ${mins}:${secs.toString().padStart(2, "0")}`;
+                                        })()}
+                                        {set.distanceKm &&
+                                          ` • 📏 ${set.distanceKm.toFixed(2)} km`}
+                                        {set.distanceKm &&
+                                          set.durationSeconds &&
+                                          (() => {
+                                            const paceSeconds =
+                                              set.durationSeconds /
+                                              set.distanceKm;
+                                            const paceMins = Math.floor(
+                                              paceSeconds / 60
+                                            );
+                                            const paceSecs = Math.round(
+                                              paceSeconds % 60
+                                            );
+                                            return ` • 🏃 ${paceMins}:${paceSecs.toString().padStart(2, "0")}/km`;
+                                          })()}
+                                      </>
+                                    ) : (
+                                      // STRENGTH: Gewicht & Wiederholungen
+                                      <>
+                                        {displayWeightWithLabel(
+                                          set.weight,
+                                          userPreferences?.weightUnit || "kg"
+                                        )}{" "}
+                                        × {set.reps} Wdh.
+                                      </>
+                                    )}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              Keine Sätze erfasst
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
-
-              <div className="space-y-3">
-                {selectedWorkout.exercises?.map((we) => (
-                  <div key={we.id} className="border-t pt-3">
-                    <h3 className="font-semibold text-lg mb-2">
-                      {we.exercise.name}
-                    </h3>
-
-                    {/* Kommentar (falls vorhanden) */}
-                    {we.comment && (
-                      <div className="bg-yellow-50 p-3 rounded mb-3 border-l-4 border-yellow-400">
-                        <p className="text-xs font-medium text-yellow-800 mb-1">
-                          Kommentar:
-                        </p>
-                        <p className="text-sm text-yellow-900">{we.comment}</p>
-                      </div>
-                    )}
-
-                    {/* Sätze */}
-                    {we.sets && we.sets.length > 0 ? (
-                      <div className="space-y-1">
-                        {we.sets.map((set) => (
-                          <div
-                            key={set.id}
-                            className="text-sm bg-gray-50 p-2 rounded"
-                          >
-                            Satz {set.setNumber}: {set.weight} kg × {set.reps}{" "}
-                            Wdh.
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-500">
-                        Keine Sätze erfasst
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }

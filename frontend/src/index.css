@@ -1,3 +1,61 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Dark Mode Defaults */
+@layer base {
+  /* Body/Root */
+  .dark {
+    background-color: rgb(17 24 39); /* gray-900 */
+  }
+}
+
+@layer components {
+  /* Weiße Karten → Dunkelgrau (aber NICHT Buttons!) */
+  .dark .bg-white:not(button):not(a) {
+    background-color: rgb(31 41 55) !important; /* gray-800 */
+  }
+
+  /* Graue Hintergründe → Dunkler */
+  .dark .bg-gray-50 {
+    background-color: rgb(17 24 39) !important; /* gray-900 */
+  }
+
+  .dark .bg-gray-100 {
+    background-color: rgb(31 41 55) !important; /* gray-800 */
+  }
+
+  .dark .bg-gray-200 {
+    background-color: rgb(55 65 81) !important; /* gray-700 */
+  }
+
+  /* Input-Felder */
+  .dark input,
+  .dark textarea,
+  .dark select {
+    background-color: rgb(55 65 81); /* gray-700 */
+    border-color: rgb(75 85 99); /* gray-600 */
+    color: white;
+  }
+
+  /* Texte heller machen */
+  .dark .text-gray-600 {
+    color: rgb(156 163 175) !important; /* gray-400 */
+  }
+
+  .dark .text-gray-700 {
+    color: rgb(209 213 219) !important; /* gray-300 */
+  }
+
+  .dark .text-gray-500 {
+    color: rgb(156 163 175) !important; /* gray-400 */
+  }
+
+  .dark h1,
+  .dark h2,
+  .dark h3,
+  .dark h4,
+  .dark p:not([class*="text-"]) {
+    color: rgb(243 244 246); /* gray-100 */
+  }
+}

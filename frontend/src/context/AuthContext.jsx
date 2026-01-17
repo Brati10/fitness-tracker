@@ -21,11 +21,11 @@ export function AuthProvider({ children }) {
   const login = async (username, password) => {
     try {
       const response = await authApi.login({ username, password });
-      const { token, userId, username: userName } = response.data;
+      const { token, userId, username: userName, role } = response.data;
 
       tokenService.setToken(token);
-      tokenService.setUser({ id: userId, username: userName });
-      setUser({ id: userId, username: userName });
+      tokenService.setUser({ id: userId, username: userName, role });
+      setUser({ id: userId, username: userName, role });
 
       return { success: true };
     } catch (error) {
@@ -33,19 +33,18 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const register = async (username, email, password, height) => {
+  const register = async (username, password, height) => {
     try {
       const response = await authApi.register({
         username,
-        email,
         password,
         height,
       });
-      const { token, userId, username: userName } = response.data;
+      const { token, userId, username: userName, role } = response.data;
 
       tokenService.setToken(token);
-      tokenService.setUser({ id: userId, username: userName });
-      setUser({ id: userId, username: userName });
+      tokenService.setUser({ id: userId, username: userName, role });
+      setUser({ id: userId, username: userName, role });
 
       return { success: true };
     } catch (error) {

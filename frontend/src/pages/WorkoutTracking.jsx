@@ -1,33 +1,57 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { exerciseApi, workoutApi, templateApi } from "../services/api";
-import RestTimer from "../components/RestTimer";
-import ExerciseManager from "../components/ExerciseManager";
+import { useTraining } from "../context/TrainingContext";
+import {
+  exerciseApi,
+  workoutApi,
+  templateApi,
+  preferencesApi,
+} from "../services/api";
 import ExerciseSelector from "../components/ExerciseSelector";
+import PageHeader from "../components/PageHeader";
+import { displayWeight } from "../utils/weightConversion";
+import { DEFAULT_SETS_COUNT } from "../utils/constants";
 
 function WorkoutTracking() {
   const { user } = useAuth();
   const userId = user?.id;
   const navigate = useNavigate();
 
+  const {
+    activeWorkout,
+    setActiveWorkout,
+    startTraining,
+    finishTraining,
+    discardTraining,
+    timerActive,
+    timerEndTime,
+    startTimer,
+    stopTimer,
+    adjustTimer,
+  } = useTraining();
+
+  const localWorkout = activeWorkout;
+  const setLocalWorkout = setActiveWorkout;
+
   const [exercises, setExercises] = useState([]);
-  const [localWorkout, setLocalWorkout] = useState(null);
   const [showExerciseList, setShowExerciseList] = useState(false);
-  const [timerActive, setTimerActive] = useState(false);
-  const [timerKey, setTimerKey] = useState(0);
   const [lastPerformances, setLastPerformances] = useState({});
-  const [showCancelModal, setShowCancelModal] = useState(false);
   const [showFinishModal, setShowFinishModal] = useState(false);
   const [expandedExercises, setExpandedExercises] = useState(new Set());
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
   const [templateName, setTemplateName] = useState("");
+  const [templates, setTemplates] = useState([]);
+  const [userPreferences, setUserPreferences] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   const location = useLocation();
 
   useEffect(() => {
     loadExercises();
+    loadTemplates();
+    loadUserPreferences();
 
     // Prüfen ob aus Vorlage gestartet
     if (location.state?.templateId) {
@@ -41,6 +65,26 @@ function WorkoutTracking() {
       setExercises(response.data);
     } catch (error) {
       console.error("Fehler beim Laden der Übungen:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadTemplates = async () => {
+    try {
+      const response = await templateApi.getUserTemplates(userId);
+      setTemplates(response.data);
+    } catch (error) {
+      console.error("Fehler beim Laden der Vorlagen:", error);
+    }
+  };
+
+  const loadUserPreferences = async () => {
+    try {
+      const response = await preferencesApi.getUserPreferences(userId);
+      setUserPreferences(response.data);
+    } catch (error) {
+      console.error("Fehler beim Laden der Preferences:", error);
     }
   };
 
@@ -85,12 +129,14 @@ function WorkoutTracking() {
       .toISOString()
       .slice(0, 19);
 
-    setLocalWorkout({
+    const newWorkout = {
       name: `Training ${new Date().toLocaleDateString("de-DE")}`,
       startTime: localDateTime,
       endTime: null,
       exercises: [],
-    });
+    };
+
+    startTraining(newWorkout);
   };
 
   const loadTemplateAndStart = async (templateId) => {
@@ -110,7 +156,7 @@ function WorkoutTracking() {
       const exercisesFromTemplate = await Promise.all(
         template.exercises.map(async (te) => {
           // Sätze aus Vorlage oder "Letztes Mal" generieren
-          const templateSets = te.setsCount || 3;
+          const templateSets = te.setsCount || DEFAULT_SETS_COUNT;
           let lastSets = [];
 
           // "Letztes Mal" Daten laden (synchron warten)
@@ -140,22 +186,43 @@ function WorkoutTracking() {
           // Durchschnitt berechnen falls nötig
           let avgWeight = te.targetWeight || "";
           let avgReps = te.targetReps || "";
+          let avgDuration = te.targetDurationSeconds || null;
+          let avgDistance = te.targetDistanceKm || null;
 
-          if (lastSets.length > 0 && setsCount > lastSets.length) {
-            const calculatedAvgWeight =
-              lastSets.reduce((sum, s) => sum + (s.weight || 0), 0) /
-              lastSets.length;
-            const calculatedAvgReps =
-              lastSets.reduce((sum, s) => sum + (s.reps || 0), 0) /
-              lastSets.length;
+          if (te.exercise.exerciseType === "CARDIO") {
+            // CARDIO: Durchschnitt aus letzten Sätzen
+            if (lastSets.length > 0 && setsCount > lastSets.length) {
+              const calculatedAvgDuration =
+                lastSets.reduce((sum, s) => sum + (s.durationSeconds || 0), 0) /
+                lastSets.length;
+              const calculatedAvgDistance =
+                lastSets.reduce((sum, s) => sum + (s.distanceKm || 0), 0) /
+                lastSets.length;
 
-            // Nur Nachkommastelle wenn nicht glatt
-            avgWeight =
-              calculatedAvgWeight % 1 === 0
-                ? calculatedAvgWeight.toString()
-                : calculatedAvgWeight.toFixed(1);
+              avgDuration = Math.round(calculatedAvgDuration);
+              avgDistance =
+                calculatedAvgDistance > 0
+                  ? parseFloat(calculatedAvgDistance.toFixed(2))
+                  : null;
+            }
+          } else {
+            // STRENGTH: Durchschnitt aus letzten Sätzen
+            if (lastSets.length > 0 && setsCount > lastSets.length) {
+              const calculatedAvgWeight =
+                lastSets.reduce((sum, s) => sum + (s.weight || 0), 0) /
+                lastSets.length;
+              const calculatedAvgReps =
+                lastSets.reduce((sum, s) => sum + (s.reps || 0), 0) /
+                lastSets.length;
 
-            avgReps = Math.round(calculatedAvgReps);
+              // Nur Nachkommastelle wenn nicht glatt
+              avgWeight =
+                calculatedAvgWeight % 1 === 0
+                  ? calculatedAvgWeight.toString()
+                  : calculatedAvgWeight.toFixed(1);
+
+              avgReps = Math.round(calculatedAvgReps);
+            }
           }
 
           // Sätze generieren
@@ -163,17 +230,35 @@ function WorkoutTracking() {
           for (let i = 0; i < setsCount; i++) {
             const lastSet = lastSets[i]; // undefined wenn nicht vorhanden
 
-            sets.push({
-              setNumber: i + 1,
-              weight: lastSet?.weight || avgWeight || "",
-              reps: lastSet?.reps || avgReps || "",
-              completed: false,
-            });
+            if (te.exercise.exerciseType === "CARDIO") {
+              // CARDIO Sätze
+              sets.push({
+                setNumber: i + 1,
+                durationSeconds: lastSet?.durationSeconds || null,
+                distanceKm: lastSet?.distanceKm || null,
+                reps: null,
+                weight: null,
+                completed: false,
+              });
+            } else {
+              // STRENGTH Sätze
+              sets.push({
+                setNumber: i + 1,
+                weight: lastSet?.weight || avgWeight || "",
+                reps: lastSet?.reps || avgReps || "",
+                durationSeconds: null,
+                distanceKm: null,
+                completed: false,
+              });
+            }
           }
 
           return {
             exerciseId: te.exercise.id,
             exerciseName: te.exercise.name,
+            exerciseType: te.exercise.exerciseType,
+            weightPerSide: te.exercise.weightPerSide || false,
+            equipmentType: te.exercise.equipmentType,
             orderIndex: te.orderIndex,
             sets: sets,
             comment: "",
@@ -196,20 +281,6 @@ function WorkoutTracking() {
     }
   };
 
-  const loadLastPerformance = async (exerciseId) => {
-    try {
-      const response = await workoutApi.getLastPerformance(exerciseId, userId);
-      if (response.data) {
-        setLastPerformances({
-          ...lastPerformances,
-          [exerciseId]: response.data,
-        });
-      }
-    } catch (error) {
-      console.error("Fehler beim Laden der letzten Performance:", error);
-    }
-  };
-
   const addExerciseToWorkout = async (exercise) => {
     let initialSets = [];
 
@@ -221,12 +292,16 @@ function WorkoutTracking() {
           .sort((a, b) => a.setNumber - b.setNumber)
           .map((set, index) => ({
             setNumber: index + 1,
+            // STRENGTH Felder:
             weight: set.weight,
             reps: set.reps,
+            // CARDIO Felder:
+            durationSeconds: set.durationSeconds,
+            distanceKm: set.distanceKm,
             completed: false,
           }));
 
-        // Auch für "Letztes Mal" Anzeige speichern
+        // Auch für Kommentar-Anzeige speichern
         setLastPerformances({
           ...lastPerformances,
           [exercise.id]: response.data,
@@ -243,13 +318,15 @@ function WorkoutTracking() {
         {
           exerciseId: exercise.id,
           exerciseName: exercise.name,
+          exerciseType: exercise.exerciseType,
+          weightPerSide: exercise.weightPerSide || false,
+          equipmentType: exercise.equipmentType,
           orderIndex: localWorkout.exercises.length,
           sets: initialSets,
           comment: "",
         },
       ],
     });
-    setShowExerciseList(false);
   };
 
   const toggleExercise = (exerciseId) => {
@@ -266,12 +343,25 @@ function WorkoutTracking() {
     const updatedExercises = [...localWorkout.exercises];
     const exercise = updatedExercises[exerciseIndex];
 
-    exercise.sets.push({
+    const newSet = {
       setNumber: exercise.sets.length + 1,
-      weight: "",
-      reps: "",
       completed: false,
-    });
+    };
+
+    // STRENGTH vs CARDIO
+    if (exercise.exerciseType === "CARDIO") {
+      newSet.durationSeconds = null;
+      newSet.distanceKm = null;
+      newSet.weight = null;
+      newSet.reps = null;
+    } else {
+      newSet.weight = "";
+      newSet.reps = "";
+      newSet.durationSeconds = null;
+      newSet.distanceKm = null;
+    }
+
+    exercise.sets.push(newSet);
 
     setLocalWorkout({
       ...localWorkout,
@@ -320,6 +410,14 @@ function WorkoutTracking() {
 
     set.completed = !set.completed;
 
+    // Wenn Satz gecheckt wird und Gewicht leer → 0 setzen
+    if (
+      set.completed &&
+      (set.weight === "" || set.weight === null || set.weight === undefined)
+    ) {
+      set.weight = 0;
+    }
+
     setLocalWorkout({
       ...localWorkout,
       exercises: updatedExercises,
@@ -327,8 +425,8 @@ function WorkoutTracking() {
 
     // Timer starten wenn Satz gecheckt wird
     if (set.completed) {
-      setTimerKey((prev) => prev + 1);
-      setTimerActive(true);
+      const restTime = userPreferences?.defaultRestTime || 60;
+      startTimer(restTime);
     }
   };
 
@@ -340,28 +438,6 @@ function WorkoutTracking() {
       ...localWorkout,
       exercises: updatedExercises,
     });
-  };
-
-  const handleTimerComplete = () => {
-    setTimerActive(false);
-  };
-
-  const handleTimerSkip = () => {
-    setTimerActive(false);
-  };
-
-  const handleBackClick = () => {
-    if (localWorkout) {
-      setShowCancelModal(true);
-    } else {
-      navigate("/");
-    }
-  };
-
-  const cancelWorkout = () => {
-    setLocalWorkout(null);
-    setShowCancelModal(false);
-    navigate("/");
   };
 
   const moveExercise = (fromIndex, toIndex) => {
@@ -417,7 +493,7 @@ function WorkoutTracking() {
 
       await workoutApi.saveComplete(workoutData);
 
-      setLocalWorkout(null);
+      finishTraining();
       setShowFinishModal(false);
       navigate("/workout/history");
     } catch (error) {
@@ -436,13 +512,27 @@ function WorkoutTracking() {
       const templateData = {
         userId: userId,
         name: templateName,
-        exercises: localWorkout.exercises.map((ex, index) => ({
-          exerciseId: ex.exerciseId,
-          orderIndex: index,
-          setsCount: ex.sets.length,
-          targetWeight: ex.sets.length > 0 ? ex.sets[0].weight : null,
-          targetReps: ex.sets.length > 0 ? ex.sets[0].reps : null,
-        })),
+        exercises: localWorkout.exercises.map((ex, index) => {
+          const exerciseData = {
+            exerciseId: ex.exerciseId,
+            orderIndex: index,
+            setsCount: ex.sets.length,
+          };
+
+          // STRENGTH: targetWeight & targetReps
+          if (ex.exerciseType !== "CARDIO" && ex.sets.length > 0) {
+            exerciseData.targetWeight = ex.sets[0].weight;
+            exerciseData.targetReps = ex.sets[0].reps;
+          }
+
+          // CARDIO: targetDuration & targetDistance
+          if (ex.exerciseType === "CARDIO" && ex.sets.length > 0) {
+            exerciseData.targetDurationSeconds = ex.sets[0].durationSeconds;
+            exerciseData.targetDistanceKm = ex.sets[0].distanceKm;
+          }
+
+          return exerciseData;
+        }),
       };
 
       await templateApi.create(templateData);
@@ -458,41 +548,70 @@ function WorkoutTracking() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b border-gray-200 p-4 sticky top-0 z-40 shadow-sm">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleBackClick}
-            className="text-blue-500 hover:text-blue-700 text-2xl"
-          >
-            ←
-          </button>
-          <h1 className="text-2xl font-bold">Training</h1>
-        </div>
-      </div>
+      <PageHeader title="Training" showBack backTo="/" />
 
-      {timerActive && (
-        <RestTimer
-          key={timerKey}
-          onComplete={handleTimerComplete}
-          onSkip={handleTimerSkip}
-        />
+      {loading && !localWorkout && (
+        <div className="flex items-center justify-center p-8">
+          <p className="text-gray-600 dark:text-gray-400">Lädt...</p>
+        </div>
+      )}
+
+      {timerActive && timerEndTime && (
+        <div className="fixed top-16 left-0 right-0 bg-blue-500 text-white p-3 shadow-lg z-40">
+          <RestTimerContent
+            endTime={timerEndTime}
+            onAdjust={adjustTimer}
+            onSkip={stopTimer}
+          />
+        </div>
       )}
 
       <div className="p-4">
         {/* Kein aktives Training */}
         {!localWorkout && (
           <div className="space-y-4">
+            {/* Vorlagen */}
+            {templates.length > 0 && (
+              <div className="bg-white p-4 rounded-lg shadow">
+                <h2 className="text-xl font-semibold mb-3">
+                  Trainingsvorlagen
+                </h2>
+                <div className="space-y-2">
+                  {templates.map((template) => (
+                    <button
+                      key={template.id}
+                      onClick={() => loadTemplateAndStart(template.id)}
+                      className="w-full text-left border-2 border-blue-500 rounded-lg px-4 py-3 hover:bg-blue-50 transition"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="font-semibold text-lg">
+                            {template.name}
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            {template.exercises?.length || 0} Übungen
+                          </p>
+                        </div>
+                        <span className="text-2xl">▶️</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Freies Training Button */}
             <button
               onClick={startWorkout}
-              className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-4 rounded"
+              className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-4 px-4 rounded-lg text-lg shadow"
             >
-              Neues Training starten
+              ➕ Freies Training starten
             </button>
 
-            <ExerciseManager
-              exercises={exercises}
-              onExerciseCreated={loadExercises}
-            />
+            {/* Info-Text */}
+            <p className="text-center text-sm text-gray-500">
+              Starte ein freies Training oder wähle eine Vorlage
+            </p>
           </div>
         )}
 
@@ -580,13 +699,65 @@ function WorkoutTracking() {
                           {ex.exerciseName}
                         </h3>
                         {totalCompleted > 0 && (
-                          <p className="text-sm text-gray-600 mt-1">
-                            {totalCompleted} Sätze · ⌀ {avgWeight}kg × {avgReps}{" "}
-                            Wdh.
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                            {totalCompleted} Sätze · ⌀{" "}
+                            {ex.exerciseType === "CARDIO" ? (
+                              // Cardio: Zeit (Summe), Distanz (Summe) & Pace (Durchschnitt)
+                              <>
+                                {(() => {
+                                  const totalDuration = completedSets.reduce(
+                                    (sum, s) => sum + (s.durationSeconds || 0),
+                                    0
+                                  );
+                                  const totalDistance = completedSets.reduce(
+                                    (sum, s) => sum + (s.distanceKm || 0),
+                                    0
+                                  );
+                                  const mins = Math.floor(totalDuration / 60);
+                                  const secs = Math.round(totalDuration % 60);
+
+                                  // Pace berechnen (Durchschnitt über alle Sets)
+                                  let paceDisplay = "";
+                                  if (totalDistance > 0 && totalDuration > 0) {
+                                    const paceSeconds =
+                                      totalDuration / totalDistance;
+                                    const paceMins = Math.floor(
+                                      paceSeconds / 60
+                                    );
+                                    const paceSecs = Math.round(
+                                      paceSeconds % 60
+                                    );
+                                    paceDisplay = ` • 🏃 ${paceMins}:${paceSecs
+                                      .toString()
+                                      .padStart(2, "0")}/km`;
+                                  }
+
+                                  return (
+                                    <>
+                                      ⏱️ {mins}:
+                                      {secs.toString().padStart(2, "0")}
+                                      {totalDistance > 0 &&
+                                        ` • 📏 ${totalDistance.toFixed(2)} km`}
+                                      {paceDisplay}
+                                    </>
+                                  );
+                                })()}
+                              </>
+                            ) : (
+                              // Strength: Gewicht & Wiederholungen
+                              <>
+                                {avgWeight === 0
+                                  ? "Körpergewicht"
+                                  : `${displayWeight(
+                                      avgWeight,
+                                      userPreferences?.weightUnit || "kg"
+                                    )} ${
+                                      userPreferences?.weightUnit || "kg"
+                                    }`}{" "}
+                                × {avgReps} Wdh.
+                              </>
+                            )}
                           </p>
-                        )}
-                        {totalCompleted === 0 && (
-                          <p className="text-sm text-gray-400"></p>
                         )}
                       </div>
 
@@ -637,11 +808,56 @@ function WorkoutTracking() {
                   {isExpanded && (
                     <div className="px-4 pb-4 border-t pt-4">
                       {/* Tabellen-Header */}
-                      <div className="grid grid-cols-12 gap-2 mb-2 text-sm font-medium text-gray-600">
+                      <div
+                        className={`grid gap-2 mb-2 text-sm font-medium text-gray-600 dark:text-gray-400 ${
+                          ex.exerciseType === "CARDIO"
+                            ? "grid-cols-10"
+                            : ex.equipmentType === "BODYWEIGHT"
+                              ? "grid-cols-6"
+                              : "grid-cols-12"
+                        }`}
+                      >
                         <div className="col-span-2 text-center">#</div>
-                        <div className="col-span-4 text-center">kg</div>
-                        <div className="col-span-4 text-center">Wdh.</div>
-                        <div className="col-span-2 text-center">Done</div>
+
+                        {/* Bei Cardio: Zeit & Distanz statt Gewicht/Wdh */}
+                        {ex.exerciseType === "CARDIO" ? (
+                          <>
+                            <div className="col-span-4 text-center">
+                              Zeit (Min:Sek)
+                            </div>
+                            <div className="col-span-3 text-center">
+                              Distanz (km)
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="col-span-3 text-center">Wdh.</div>
+
+                            {/* kg/lbs nur wenn NICHT Bodyweight */}
+                            {ex.equipmentType !== "BODYWEIGHT" && (
+                              <>
+                                <div className="col-span-3 text-center">
+                                  <div>kg</div>
+                                  {ex.weightPerSide && (
+                                    <div className="text-[10px] font-normal text-gray-500 dark:text-gray-500">
+                                      (pro Seite)
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="col-span-3 text-center">
+                                  <div>lbs</div>
+                                  {ex.weightPerSide && (
+                                    <div className="text-[10px] font-normal text-gray-500 dark:text-gray-500">
+                                      (pro Seite)
+                                    </div>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </>
+                        )}
+
+                        <div className="col-span-1 text-center">✓</div>
                       </div>
 
                       {/* Sätze */}
@@ -650,60 +866,338 @@ function WorkoutTracking() {
                           {ex.sets.map((set, setIndex) => (
                             <div
                               key={setIndex}
-                              className="grid grid-cols-12 gap-2 items-center"
+                              className={`grid gap-2 items-center ${
+                                ex.exerciseType === "CARDIO"
+                                  ? "grid-cols-10"
+                                  : ex.equipmentType === "BODYWEIGHT"
+                                    ? "grid-cols-6"
+                                    : "grid-cols-12"
+                              }`}
                             >
                               {/* Satznummer */}
-                              <div className="col-span-2 text-center font-medium text-gray-700">
+                              <div className="col-span-2 text-center font-medium text-gray-700 dark:text-gray-300">
                                 {set.setNumber}
                               </div>
 
-                              {/* Gewicht */}
-                              <div className="col-span-4">
-                                <input
-                                  type="number"
-                                  step="0.5"
-                                  value={set.weight}
-                                  onChange={(e) =>
-                                    updateSet(
-                                      exerciseIndex,
-                                      setIndex,
-                                      "weight",
-                                      e.target.value
-                                    )
-                                  }
-                                  disabled={set.completed}
-                                  className={`w-full border rounded px-2 py-2 text-center ${
-                                    set.completed
-                                      ? "bg-gray-100 text-gray-500"
-                                      : ""
-                                  }`}
-                                />
-                              </div>
+                              {/* CARDIO: Zeit & Distanz */}
+                              {ex.exerciseType === "CARDIO" ? (
+                                <>
+                                  {/* Zeit Input */}
+                                  <div className="col-span-4">
+                                    <div className="col-span-4 flex gap-1">
+                                      {/* Minuten */}
+                                      <input
+                                        type="number"
+                                        value={
+                                          set.durationSeconds
+                                            ? Math.floor(
+                                                set.durationSeconds / 60
+                                              )
+                                            : ""
+                                        }
+                                        onChange={(e) => {
+                                          const mins =
+                                            parseInt(e.target.value) || 0;
+                                          const secs = set.durationSeconds
+                                            ? set.durationSeconds % 60
+                                            : 0;
+                                          updateSet(
+                                            exerciseIndex,
+                                            setIndex,
+                                            "durationSeconds",
+                                            mins * 60 + secs
+                                          );
+                                        }}
+                                        onFocus={(e) => e.target.select()}
+                                        placeholder="Min"
+                                        min="0"
+                                        disabled={set.completed}
+                                        className={`w-1/2 border rounded px-2 py-2 text-center text-sm ${
+                                          set.completed
+                                            ? "bg-gray-100 text-gray-500 dark:bg-gray-600 dark:text-gray-400"
+                                            : ""
+                                        }`}
+                                      />
+                                      {/* Sekunden */}
+                                      <input
+                                        type="number"
+                                        value={
+                                          set.durationSeconds
+                                            ? set.durationSeconds % 60
+                                            : ""
+                                        }
+                                        onChange={(e) => {
+                                          const mins = set.durationSeconds
+                                            ? Math.floor(
+                                                set.durationSeconds / 60
+                                              )
+                                            : 0;
+                                          const secs =
+                                            parseInt(e.target.value) || 0;
+                                          updateSet(
+                                            exerciseIndex,
+                                            setIndex,
+                                            "durationSeconds",
+                                            mins * 60 + secs
+                                          );
+                                        }}
+                                        onFocus={(e) => e.target.select()}
+                                        placeholder="Sek"
+                                        min="0"
+                                        max="59"
+                                        disabled={set.completed}
+                                        className={`w-1/2 border rounded px-2 py-2 text-center text-sm ${
+                                          set.completed
+                                            ? "bg-gray-100 text-gray-500 dark:bg-gray-600 dark:text-gray-400"
+                                            : ""
+                                        }`}
+                                      />
+                                    </div>
+                                  </div>
 
-                              {/* Wiederholungen */}
-                              <div className="col-span-4">
-                                <input
-                                  type="number"
-                                  value={set.reps}
-                                  onChange={(e) =>
-                                    updateSet(
-                                      exerciseIndex,
-                                      setIndex,
-                                      "reps",
-                                      e.target.value
-                                    )
-                                  }
-                                  disabled={set.completed}
-                                  className={`w-full border rounded px-2 py-2 text-center ${
-                                    set.completed
-                                      ? "bg-gray-100 text-gray-500"
-                                      : ""
-                                  }`}
-                                />
-                              </div>
+                                  {/* Distanz Input */}
+                                  <div className="col-span-3">
+                                    <input
+                                      type="text"
+                                      inputMode="decimal"
+                                      value={set.distanceKm || ""}
+                                      onChange={(e) => {
+                                        const value = e.target.value;
+                                        if (
+                                          value === "" ||
+                                          /^[0-9.,]*$/.test(value)
+                                        ) {
+                                          const normalized = value.replace(
+                                            ",",
+                                            "."
+                                          );
+                                          updateSet(
+                                            exerciseIndex,
+                                            setIndex,
+                                            "distanceKm",
+                                            normalized
+                                          );
+                                        }
+                                      }}
+                                      onBlur={(e) => {
+                                        const value = e.target.value.replace(
+                                          ",",
+                                          "."
+                                        );
+                                        if (value === "") {
+                                          updateSet(
+                                            exerciseIndex,
+                                            setIndex,
+                                            "distanceKm",
+                                            ""
+                                          );
+                                        } else {
+                                          const numValue = parseFloat(value);
+                                          if (!isNaN(numValue)) {
+                                            updateSet(
+                                              exerciseIndex,
+                                              setIndex,
+                                              "distanceKm",
+                                              parseFloat(numValue.toFixed(2))
+                                            );
+                                          }
+                                        }
+                                      }}
+                                      onFocus={(e) => e.target.select()}
+                                      placeholder="0.00"
+                                      disabled={set.completed}
+                                      className={`w-full border rounded px-2 py-2 text-center text-sm ${
+                                        set.completed
+                                          ? "bg-gray-100 text-gray-500 dark:bg-gray-600 dark:text-gray-400"
+                                          : ""
+                                      }`}
+                                    />
+                                  </div>
+                                </>
+                              ) : (
+                                /* STRENGTH: Wiederholungen & Gewicht */
+                                <>
+                                  {/* Wiederholungen */}
+                                  <div className="col-span-3">
+                                    <input
+                                      type="number"
+                                      value={set.reps}
+                                      onChange={(e) =>
+                                        updateSet(
+                                          exerciseIndex,
+                                          setIndex,
+                                          "reps",
+                                          e.target.value
+                                        )
+                                      }
+                                      onFocus={(e) => e.target.select()}
+                                      disabled={set.completed}
+                                      className={`w-full border rounded px-2 py-2 text-center ${
+                                        set.completed
+                                          ? "bg-gray-100 text-gray-500 dark:bg-gray-600 dark:text-gray-400"
+                                          : ""
+                                      }`}
+                                    />
+                                  </div>
+
+                                  {/* Gewicht - nur wenn NICHT Bodyweight */}
+                                  {ex.equipmentType !== "BODYWEIGHT" && (
+                                    <>
+                                      {/* Gewicht KG */}
+                                      <div className="col-span-3">
+                                        <input
+                                          type="text"
+                                          inputMode="decimal"
+                                          value={
+                                            set.weight === null ||
+                                            set.weight === undefined ||
+                                            set.weight === ""
+                                              ? ""
+                                              : set.weight === 0
+                                                ? "0"
+                                                : set.weight
+                                          }
+                                          onChange={(e) => {
+                                            const value = e.target.value;
+                                            if (
+                                              value === "" ||
+                                              /^[0-9.,]*$/.test(value)
+                                            ) {
+                                              const normalized = value.replace(
+                                                ",",
+                                                "."
+                                              );
+                                              updateSet(
+                                                exerciseIndex,
+                                                setIndex,
+                                                "weight",
+                                                normalized
+                                              );
+                                            }
+                                          }}
+                                          onBlur={(e) => {
+                                            const value =
+                                              e.target.value.replace(",", ".");
+                                            if (value === "") {
+                                              updateSet(
+                                                exerciseIndex,
+                                                setIndex,
+                                                "weight",
+                                                0
+                                              );
+                                            } else {
+                                              const numValue =
+                                                parseFloat(value);
+                                              if (!isNaN(numValue)) {
+                                                updateSet(
+                                                  exerciseIndex,
+                                                  setIndex,
+                                                  "weight",
+                                                  parseFloat(
+                                                    numValue.toFixed(2)
+                                                  )
+                                                );
+                                              }
+                                            }
+                                          }}
+                                          onFocus={(e) => e.target.select()}
+                                          disabled={set.completed}
+                                          className={`w-full border rounded px-2 py-2 text-center text-sm ${
+                                            set.completed
+                                              ? "bg-gray-100 text-gray-500 dark:bg-gray-600 dark:text-gray-400"
+                                              : ""
+                                          }`}
+                                        />
+                                      </div>
+
+                                      {/* Gewicht LBS */}
+                                      <div className="col-span-3">
+                                        <input
+                                          type="text"
+                                          inputMode="decimal"
+                                          value={
+                                            set.weight === null ||
+                                            set.weight === undefined ||
+                                            set.weight === ""
+                                              ? ""
+                                              : set.weight === 0
+                                                ? "0"
+                                                : Math.round(
+                                                    set.weight * 2.20462 * 10
+                                                  ) / 10
+                                          }
+                                          onChange={(e) => {
+                                            const value = e.target.value;
+                                            if (
+                                              value === "" ||
+                                              /^[0-9.,]*$/.test(value)
+                                            ) {
+                                              const normalized = value.replace(
+                                                ",",
+                                                "."
+                                              );
+                                              const lbsValue =
+                                                parseFloat(normalized);
+                                              if (!isNaN(lbsValue)) {
+                                                const kgValue =
+                                                  lbsValue * 0.453592;
+                                                updateSet(
+                                                  exerciseIndex,
+                                                  setIndex,
+                                                  "weight",
+                                                  parseFloat(kgValue.toFixed(2))
+                                                );
+                                              } else if (normalized === "") {
+                                                updateSet(
+                                                  exerciseIndex,
+                                                  setIndex,
+                                                  "weight",
+                                                  ""
+                                                );
+                                              }
+                                            }
+                                          }}
+                                          onBlur={(e) => {
+                                            const value =
+                                              e.target.value.replace(",", ".");
+                                            if (value === "") {
+                                              updateSet(
+                                                exerciseIndex,
+                                                setIndex,
+                                                "weight",
+                                                0
+                                              );
+                                            } else {
+                                              const lbsValue =
+                                                parseFloat(value);
+                                              if (!isNaN(lbsValue)) {
+                                                const kgValue =
+                                                  lbsValue * 0.453592;
+                                                updateSet(
+                                                  exerciseIndex,
+                                                  setIndex,
+                                                  "weight",
+                                                  parseFloat(kgValue.toFixed(2))
+                                                );
+                                              }
+                                            }
+                                          }}
+                                          onFocus={(e) => e.target.select()}
+                                          disabled={set.completed}
+                                          className={`w-full border rounded px-2 py-2 text-center text-sm ${
+                                            set.completed
+                                              ? "bg-gray-100 text-gray-500 dark:bg-gray-600 dark:text-gray-400"
+                                              : ""
+                                          }`}
+                                        />
+                                      </div>
+                                    </>
+                                  )}
+                                </>
+                              )}
 
                               {/* Checkbox */}
-                              <div className="col-span-2 flex justify-center">
+                              <div className="col-span-1 flex justify-center">
                                 <input
                                   type="checkbox"
                                   checked={set.completed}
@@ -795,6 +1289,18 @@ function WorkoutTracking() {
             >
               📋 Als Vorlage speichern
             </button>
+
+            {/* Training verwerfen */}
+            <button
+              onClick={() => {
+                if (discardTraining()) {
+                  navigate("/");
+                }
+              }}
+              className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-4 rounded"
+            >
+              🗑️ Training verwerfen
+            </button>
           </div>
         )}
       </div>
@@ -823,33 +1329,6 @@ function WorkoutTracking() {
                 className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded"
               >
                 Entfernen
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Abbrechen Modal */}
-      {showCancelModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-sm w-full">
-            <h2 className="text-xl font-bold mb-4">Training verwerfen?</h2>
-            <p className="text-gray-600 mb-6">
-              Das Training wurde noch nicht gespeichert. Möchtest du es wirklich
-              verwerfen?
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowCancelModal(false)}
-                className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 py-2 rounded"
-              >
-                Zurück
-              </button>
-              <button
-                onClick={cancelWorkout}
-                className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded"
-              >
-                Verwerfen
               </button>
             </div>
           </div>
@@ -920,3 +1399,58 @@ function WorkoutTracking() {
 }
 
 export default WorkoutTracking;
+
+function RestTimerContent({ endTime, onAdjust, onSkip }) {
+  const [timeLeft, setTimeLeft] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const remaining = Math.max(0, Math.ceil((endTime - now) / 1000));
+      setTimeLeft(remaining);
+
+      if (remaining <= 0) {
+        clearInterval(interval);
+        onSkip();
+      }
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [endTime, onSkip]);
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  return (
+    <div className="flex items-center justify-between max-w-md mx-auto">
+      <button
+        onClick={() => onAdjust(-10)}
+        className="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded font-bold"
+      >
+        -10s
+      </button>
+
+      <div className="text-center">
+        <div className="text-2xl font-bold">{formatTime(timeLeft)}</div>
+        <div className="text-xs">Pausenzeit</div>
+      </div>
+
+      <button
+        onClick={() => onAdjust(10)}
+        className="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded font-bold"
+      >
+        +10s
+      </button>
+
+      <button
+        onClick={onSkip}
+        className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-sm"
+      >
+        Skip
+      </button>
+    </div>
+  );
+}

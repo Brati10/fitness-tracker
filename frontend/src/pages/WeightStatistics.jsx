@@ -1,6 +1,14 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
-import { weightApi } from "../services/api";
+import { weightApi, preferencesApi } from "../services/api";
+import { displayWeight } from "../utils/weightConversion";
+import { formatShortDate } from "../utils/dateFormat";
+import {
+  MS_PER_DAY,
+  DAYS_IN_MONTH,
+  DAYS_IN_3_MONTHS,
+  DAYS_IN_6_MONTHS,
+} from "../utils/constants";
 import PageHeader from "../components/PageHeader";
 import {
   LineChart,
@@ -16,77 +24,86 @@ function WeightStatistics() {
   const { user } = useAuth();
   const userId = user?.id;
   const [measurements, setMeasurements] = useState([]);
+  const [userPreferences, setUserPreferences] = useState(null);
   const [dateRange, setDateRange] = useState("last30");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadMeasurements();
+    loadUserPreferences();
   }, []);
 
   const loadMeasurements = async () => {
     try {
       const response = await weightApi.getUserMeasurements(userId);
-      // Sortieren: älteste zuerst (für Chart)
-      const sorted = response.data.sort(
-        (a, b) => new Date(a.date) - new Date(b.date)
-      );
-      setMeasurements(sorted);
+      setMeasurements(response.data);
     } catch (error) {
       console.error("Fehler beim Laden:", error);
+      alert("Fehler beim Laden der Messungen!");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadUserPreferences = async () => {
+    try {
+      const response = await preferencesApi.getUserPreferences(userId);
+      setUserPreferences(response.data);
+    } catch (error) {
+      console.error("Fehler beim Laden der Preferences:", error);
+      alert("Fehler beim Laden der Einstellungen!");
     }
   };
 
   // Helper: Gefilterte Messungen basierend auf Datumsbereich
   const getFilteredMeasurements = () => {
-    if (dateRange === "all") return measurements;
+    if (timeFilter === "all") return measurements;
 
     const now = new Date();
-    let startDate = new Date();
+    let daysToSubtract;
 
-    switch (dateRange) {
-      case "1week":
-        startDate.setDate(now.getDate() - 7);
+    switch (timeFilter) {
+      case "1month":
+        daysToSubtract = DAYS_IN_MONTH;
         break;
-      case "last30":
-        startDate = new Date(now);
-        startDate.setDate(startDate.getDate() - 30);
-        break;
-      case "thismonth":
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        break;
-      case "lastmonth":
-        startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        const endLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
-        return measurements.filter((m) => {
-          const date = new Date(m.date);
-          return date >= startDate && date <= endLastMonth;
-        });
       case "3months":
-        startDate.setMonth(now.getMonth() - 3);
+        daysToSubtract = DAYS_IN_3_MONTHS;
         break;
       case "6months":
-        startDate.setMonth(now.getMonth() - 6);
-        break;
-      case "1year":
-        startDate.setFullYear(now.getFullYear() - 1);
+        daysToSubtract = DAYS_IN_6_MONTHS;
         break;
       default:
         return measurements;
     }
 
+    const startDate = new Date(now.getTime() - daysToSubtract * MS_PER_DAY);
     return measurements.filter((m) => new Date(m.date) >= startDate);
   };
 
   // Daten für Chart vorbereiten
   const prepareChartData = (field) => {
+    const unit = userPreferences?.weightUnit || "kg";
+
     return getFilteredMeasurements()
       .filter((m) => m[field] != null)
-      .map((m) => ({
-        date: new Date(m.date).toLocaleDateString("de-DE", {
-          day: "2-digit",
-          month: "2-digit",
-        }),
-        value: m[field],
-      }));
+      .map((m) => {
+        let value = m[field];
+
+        // Gewichts-Felder umrechnen
+        if (
+          (field === "weight" ||
+            field === "muscleMass" ||
+            field === "boneMass") &&
+          unit === "lbs"
+        ) {
+          value = displayWeight(value, "lbs");
+        }
+
+        return {
+          date: formatShortDate(m.date),
+          value: value,
+        };
+      });
   };
 
   // Chart-Komponente
@@ -130,85 +147,93 @@ function WeightStatistics() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <PageHeader title="Gewichts-Statistiken" showBack backTo="/weight" />
 
-      <div className="p-4 space-y-4">
-        {/* Filter */}
-        <div className="bg-white p-4 rounded-lg shadow">
-          <label className="block text-sm font-medium mb-2">Zeitraum:</label>
-          <select
-            value={dateRange}
-            onChange={(e) => setDateRange(e.target.value)}
-            className="w-full border rounded px-3 py-2"
-          >
-            <option value="last30">Letzte 30 Tage</option>
-            <option value="1week">Letzte Woche</option>
-            <option value="thismonth">Dieser Monat</option>
-            <option value="lastmonth">Letzter Monat</option>
-            <option value="3months">Letzte 3 Monate</option>
-            <option value="6months">Letzte 6 Monate</option>
-            <option value="1year">Letztes Jahr</option>
-            <option value="all">Alle</option>
-          </select>
+      {loading ? (
+        <div className="flex items-center justify-center p-8">
+          <p className="text-gray-600 dark:text-gray-400">Lädt...</p>
         </div>
+      ) : (
+        <div className="p-4 space-y-4">
+          {/* Filter */}
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+              Zeitraum:
+            </label>
+            <select
+              value={dateRange}
+              onChange={(e) => setDateRange(e.target.value)}
+              className="w-full border rounded px-3 py-2"
+            >
+              <option value="last30">Letzte 30 Tage</option>
+              <option value="1week">Letzte Woche</option>
+              <option value="thismonth">Dieser Monat</option>
+              <option value="lastmonth">Letzter Monat</option>
+              <option value="3months">Letzte 3 Monate</option>
+              <option value="6months">Letzte 6 Monate</option>
+              <option value="1year">Letztes Jahr</option>
+              <option value="all">Alle</option>
+            </select>
+          </div>
 
-        {measurements.length === 0 ? (
-          <p className="text-center text-gray-500 py-8">
-            Noch keine Messungen vorhanden.
-          </p>
-        ) : getFilteredMeasurements().length === 0 ? (
-          <p className="text-center text-gray-500 py-8">
-            Keine Messungen im gewählten Zeitraum.
-          </p>
-        ) : (
-          <>
-            <StatChart
-              title="Gewicht"
-              field="weight"
-              unit="kg"
-              color="#3b82f6"
-            />
-            <StatChart title="BMI" field="bmi" unit="" color="#8b5cf6" />
-            <StatChart
-              title="Körperfett"
-              field="bodyFat"
-              unit="%"
-              color="#ef4444"
-            />
-            <StatChart
-              title="Muskelmasse"
-              field="muscleMass"
-              unit="kg"
-              color="#10b981"
-            />
-            <StatChart
-              title="Knochenmasse"
-              field="boneMass"
-              unit="kg"
-              color="#f59e0b"
-            />
-            <StatChart
-              title="Stoffwechselalter"
-              field="metabolicAge"
-              unit="Jahre"
-              color="#ec4899"
-            />
-            <StatChart
-              title="Wasseranteil"
-              field="waterPercentage"
-              unit="%"
-              color="#06b6d4"
-            />
-            <StatChart
-              title="Viszerales Fett"
-              field="visceralFat"
-              unit=""
-              color="#f97316"
-            />
-          </>
-        )}
-      </div>
+          {measurements.length === 0 ? (
+            <p className="text-center text-gray-500 py-8">
+              Noch keine Messungen vorhanden.
+            </p>
+          ) : getFilteredMeasurements().length === 0 ? (
+            <p className="text-center text-gray-500 py-8">
+              Keine Messungen im gewählten Zeitraum.
+            </p>
+          ) : (
+            <>
+              <StatChart
+                title="Gewicht"
+                field="weight"
+                unit={userPreferences?.weightUnit || "kg"}
+                color="#3b82f6"
+              />
+              <StatChart title="BMI" field="bmi" unit="" color="#8b5cf6" />
+              <StatChart
+                title="Körperfett"
+                field="bodyFat"
+                unit="%"
+                color="#ef4444"
+              />
+              <StatChart
+                title="Muskelmasse"
+                field="muscleMass"
+                unit={userPreferences?.weightUnit || "kg"}
+                color="#10b981"
+              />
+              <StatChart
+                title="Knochenmasse"
+                field="boneMass"
+                unit={userPreferences?.weightUnit || "kg"}
+                color="#f59e0b"
+              />
+              <StatChart
+                title="Stoffwechselalter"
+                field="metabolicAge"
+                unit="Jahre"
+                color="#ec4899"
+              />
+              <StatChart
+                title="Wasseranteil"
+                field="waterPercentage"
+                unit="%"
+                color="#06b6d4"
+              />
+              <StatChart
+                title="Viszerales Fett"
+                field="visceralFat"
+                unit=""
+                color="#f97316"
+              />
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

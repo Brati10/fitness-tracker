@@ -1,7 +1,6 @@
 package de.fitness.tracker.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -25,14 +24,21 @@ public class ExerciseSet {
     private WorkoutExercise workoutExercise;
 
     @NotNull
-    @Column(nullable = false)
-    private Integer setNumber; // 1, 2, 3, 4, ...
+    @Column(name = "set_number", nullable = false)
+    private Integer setNumber;
 
-    @NotNull
-    @Column(nullable = false)
-    private Double weight; // in kg
+    // Für STRENGTH-Übungen:
+    @Column(name = "weight")
+    private Double weight; // in kg (NULL bei Cardio)
 
-    @NotNull
-    @Column(nullable = false)
-    private Integer reps; // Wiederholungen
+    @Column(name = "reps")
+    private Integer reps; // Wiederholungen (NULL bei Cardio)
+
+    // Für CARDIO-Übungen:
+    @Column(name = "duration_seconds")
+    private Integer durationSeconds; // Dauer in Sekunden (NULL bei Strength)
+
+    @Column(name = "distance_km")
+    private Double distanceKm; // Distanz in km (NULL bei Strength, optional bei
+                               // Cardio)
 }

@@ -83,12 +83,10 @@ function WeightStatistics() {
   // Daten für Chart vorbereiten
   const prepareChartData = (field) => {
     const unit = userPreferences?.weightUnit || "kg";
-
     return getFilteredMeasurements()
       .filter((m) => m[field] != null)
       .map((m) => {
         let value = m[field];
-
         // Gewichts-Felder umrechnen
         if (
           (field === "weight" ||
@@ -98,12 +96,12 @@ function WeightStatistics() {
         ) {
           value = displayWeight(value, "lbs");
         }
-
         return {
           date: formatShortDate(m.date),
           value: value,
         };
-      });
+      })
+      .reverse(); // Älteste Daten zuerst
   };
 
   // Chart-Komponente

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { exerciseApi } from "../services/api";
 import PageHeader from "../components/PageHeader";
+import LoadingSpinner from "../components/LoadingSpinner";
 import EmptyState from "../components/EmptyState";
 import {
   getEquipmentLabel,
@@ -12,6 +13,7 @@ function ExerciseManagement() {
   const { user } = useAuth();
   const userId = user?.id;
   const [exercises, setExercises] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     name: "",
     exerciseType: "STRENGTH",
@@ -70,10 +72,13 @@ function ExerciseManagement() {
 
   const loadExercises = async () => {
     try {
+      setLoading(true);
       const response = await exerciseApi.getAll();
       setExercises(response.data);
     } catch (error) {
       console.error("Fehler beim Laden:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -258,7 +263,10 @@ function ExerciseManagement() {
             <h3 className="font-medium text-sm text-gray-600 dark:text-gray-400">
               Alle Übungen ({exercises.length}):
             </h3>
-            {exercises.length === 0 ? (
+
+            {loading ? (
+              <LoadingSpinner text="Lade Übungen..." />
+            ) : exercises.length === 0 ? (
               <EmptyState message="Noch keine Übungen vorhanden." icon="🏋️" />
             ) : (
               <div className="space-y-2">

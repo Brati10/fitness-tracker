@@ -10,6 +10,7 @@ import {
 } from "../services/api";
 import ExerciseSelector from "../components/ExerciseSelector";
 import PageHeader from "../components/PageHeader";
+import LoadingSpinner from "../components/LoadingSpinner";
 import { displayWeight } from "../utils/weightConversion";
 import { DEFAULT_SETS_COUNT } from "../utils/constants";
 
@@ -45,6 +46,8 @@ function WorkoutTracking() {
   const [templates, setTemplates] = useState([]);
   const [userPreferences, setUserPreferences] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [loadingTemplates, setLoadingTemplates] = useState(true);
 
   const location = useLocation();
 
@@ -72,10 +75,13 @@ function WorkoutTracking() {
 
   const loadTemplates = async () => {
     try {
+      setLoadingTemplates(true);
       const response = await templateApi.getUserTemplates(userId);
       setTemplates(response.data);
     } catch (error) {
       console.error("Fehler beim Laden der Vorlagen:", error);
+    } finally {
+      setLoadingTemplates(false);
     }
   };
 
@@ -204,6 +210,10 @@ function WorkoutTracking() {
                 calculatedAvgDistance > 0
                   ? parseFloat(calculatedAvgDistance.toFixed(2))
                   : null;
+            } else if (lastSets.length === 0) {
+              // Keine lastSets → Nutze Vorlagen-Werte direkt
+              avgDuration = te.targetDurationSeconds || null;
+              avgDistance = te.targetDistanceKm || null;
             }
           } else {
             // STRENGTH: Durchschnitt aus letzten Sätzen
@@ -462,7 +472,11 @@ function WorkoutTracking() {
   };
 
   const finishWorkout = async () => {
+    if (isSaving) return;
+
     try {
+      setIsSaving(true);
+
       const filteredExercises = localWorkout.exercises
         .filter((ex) => ex.sets.some((s) => s.completed))
         .map((ex) => ({
@@ -475,6 +489,7 @@ function WorkoutTracking() {
       if (filteredExercises.length === 0) {
         alert("Bitte mindestens einen Satz abschließen!");
         setShowFinishModal(false);
+        setIsSaving(false);
         return;
       }
 
@@ -500,6 +515,7 @@ function WorkoutTracking() {
     } catch (error) {
       console.error("Fehler beim Speichern:", error);
       alert("Fehler beim Speichern des Trainings!");
+      setIsSaving(false);
     }
   };
 
@@ -572,24 +588,31 @@ function WorkoutTracking() {
         {!localWorkout && (
           <div className="space-y-4">
             {/* Vorlagen */}
-            {templates.length > 0 && (
-              <div className="bg-white p-4 rounded-lg shadow">
-                <h2 className="text-xl font-semibold mb-3">
-                  Trainingsvorlagen
-                </h2>
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+              <h2 className="text-xl font-semibold mb-3 dark:text-white">
+                Trainingsvorlagen
+              </h2>
+
+              {loadingTemplates ? (
+                <LoadingSpinner text="Lade Vorlagen..." />
+              ) : templates.length === 0 ? (
+                <p className="text-gray-500 dark:text-gray-400 text-sm">
+                  Noch keine Vorlagen vorhanden.
+                </p>
+              ) : (
                 <div className="space-y-2">
                   {templates.map((template) => (
                     <button
                       key={template.id}
                       onClick={() => loadTemplateAndStart(template.id)}
-                      className="w-full text-left border-2 border-blue-500 rounded-lg px-4 py-3 hover:bg-blue-50 transition"
+                      className="w-full text-left border-2 border-blue-500 dark:border-blue-400 rounded-lg px-4 py-3 hover:bg-blue-50 dark:hover:bg-blue-900 transition"
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <h3 className="font-semibold text-lg">
+                          <h3 className="font-semibold text-lg dark:text-white">
                             {template.name}
                           </h3>
-                          <p className="text-sm text-gray-600">
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
                             {template.exercises?.length || 0} Übungen
                           </p>
                         </div>
@@ -598,8 +621,8 @@ function WorkoutTracking() {
                     </button>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Freies Training Button */}
             <button
@@ -1357,9 +1380,14 @@ function WorkoutTracking() {
               </button>
               <button
                 onClick={finishWorkout}
-                className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded"
+                disabled={isSaving}
+                className={`flex-1 py-2 rounded text-white font-semibold ${
+                  isSaving
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-green-500 hover:bg-green-600"
+                }`}
               >
-                Speichern
+                {isSaving ? "Speichert..." : "Speichern"}
               </button>
             </div>
           </div>

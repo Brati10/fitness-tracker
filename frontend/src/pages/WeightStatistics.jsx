@@ -164,7 +164,7 @@ function WeightStatistics() {
               onChange={(e) => setDateRange(e.target.value)}
               className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             >
-              <option value="1month">Letzter Monat</option>
+              <option value="1month">Letzte 30 Tage</option>
               <option value="3months">Letzte 3 Monate</option>
               <option value="6months">Letzte 6 Monate</option>
               <option value="all">Alle</option>

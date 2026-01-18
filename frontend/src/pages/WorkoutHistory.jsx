@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { workoutApi, preferencesApi } from "../services/api";
 import PageHeader from "../components/PageHeader";
+import LoadingSpinner from "../components/LoadingSpinner";
 import EmptyState from "../components/EmptyState";
 import { displayWeightWithLabel } from "../utils/weightConversion";
 import { formatDateTime } from "../utils/dateFormat";
@@ -14,6 +15,7 @@ function WorkoutHistory() {
   const [userPreferences, setUserPreferences] = useState(null);
   const [expandedWorkout, setExpandedWorkout] = useState(null);
   const [timeFilter, setTimeFilter] = useState("recent"); // 'recent', '1month', '3months', '6months', 'all'
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadWorkouts();
@@ -22,11 +24,14 @@ function WorkoutHistory() {
 
   const loadWorkouts = async () => {
     try {
+      setLoading(true);
       const response = await workoutApi.getUserWorkouts(userId);
       setWorkouts(response.data);
     } catch (error) {
       console.error("Fehler beim Laden:", error);
       alert("Fehler beim Laden der Trainings!");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -121,14 +126,16 @@ function WorkoutHistory() {
         </div>
 
         {/* Workouts */}
-        {filteredWorkouts.length === 0 ? (
+        {loading ? (
+          <LoadingSpinner text="Lade Trainings..." />
+        ) : filteredWorkouts.length === 0 ? (
           <EmptyState message="Noch keine Trainings vorhanden." icon="💪" />
         ) : (
           filteredWorkouts.map((workout) => {
             const isExpanded = expandedWorkout === workout.id;
             const duration = calculateDuration(
               workout.startTime,
-              workout.endTime
+              workout.endTime,
             );
             const totalExercises = workout.exercises?.length || 0;
 
@@ -203,7 +210,7 @@ function WorkoutHistory() {
                                       <>
                                         {(() => {
                                           const mins = Math.floor(
-                                            (set.durationSeconds || 0) / 60
+                                            (set.durationSeconds || 0) / 60,
                                           );
                                           const secs =
                                             (set.durationSeconds || 0) % 60;
@@ -218,10 +225,10 @@ function WorkoutHistory() {
                                               set.durationSeconds /
                                               set.distanceKm;
                                             const paceMins = Math.floor(
-                                              paceSeconds / 60
+                                              paceSeconds / 60,
                                             );
                                             const paceSecs = Math.round(
-                                              paceSeconds % 60
+                                              paceSeconds % 60,
                                             );
                                             return ` • 🏃 ${paceMins}:${paceSecs.toString().padStart(2, "0")}/km`;
                                           })()}
@@ -231,7 +238,7 @@ function WorkoutHistory() {
                                       <>
                                         {displayWeightWithLabel(
                                           set.weight,
-                                          userPreferences?.weightUnit || "kg"
+                                          userPreferences?.weightUnit || "kg",
                                         )}{" "}
                                         × {set.reps} Wdh.
                                       </>

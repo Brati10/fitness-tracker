@@ -25,7 +25,7 @@ function WeightStatistics() {
   const userId = user?.id;
   const [measurements, setMeasurements] = useState([]);
   const [userPreferences, setUserPreferences] = useState(null);
-  const [dateRange, setDateRange] = useState("last30");
+  const [dateRange, setDateRange] = useState("1month");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -162,15 +162,11 @@ function WeightStatistics() {
             <select
               value={dateRange}
               onChange={(e) => setDateRange(e.target.value)}
-              className="w-full border rounded px-3 py-2"
+              className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             >
-              <option value="last30">Letzte 30 Tage</option>
-              <option value="1week">Letzte Woche</option>
-              <option value="thismonth">Dieser Monat</option>
-              <option value="lastmonth">Letzter Monat</option>
+              <option value="1month">Letzter Monat</option>
               <option value="3months">Letzte 3 Monate</option>
               <option value="6months">Letzte 6 Monate</option>
-              <option value="1year">Letztes Jahr</option>
               <option value="all">Alle</option>
             </select>
           </div>
